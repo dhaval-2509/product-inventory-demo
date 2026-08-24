@@ -18,9 +18,10 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Product inventory for Shopify</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          Search products, review SKUs, update inventory, and watch webhook sync
+          logs from one embedded admin app.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
@@ -36,16 +37,16 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Catalog and inventory.</strong> View variants, SKUs, and
+            available quantities, then update stock from the app.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Live synchronization.</strong> Product and inventory webhooks
+            are stored so merchants can audit what changed.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Production ready storage.</strong> Shop sessions, shop
+            records, and sync logs live in MongoDB for Vercel deployments.
           </li>
         </ul>
       </div>

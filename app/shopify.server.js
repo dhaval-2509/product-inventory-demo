@@ -4,18 +4,38 @@ import {
   AppDistribution,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
-import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
-import prisma from "./db.server";
+import { MongoSessionStorage } from "./session.server";
+import { upsertInstalledShop } from "./models/shop.server";
+import { createSyncLog } from "./models/sync-log.server";
+
+const apiVersion = ApiVersion.July26;
 
 const shopify = shopifyApp({
   apiKey: process.env.SHOPIFY_API_KEY,
   apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
-  apiVersion: ApiVersion.July26,
+  apiVersion,
   scopes: process.env.SCOPES?.split(","),
   appUrl: process.env.SHOPIFY_APP_URL || "",
   authPathPrefix: "/auth",
-  sessionStorage: new PrismaSessionStorage(prisma),
+  sessionStorage: new MongoSessionStorage(),
   distribution: AppDistribution.AppStore,
+  hooks: {
+    afterAuth: async ({ session, admin }) => {
+      try {
+        await upsertInstalledShop({ session, admin });
+        await createSyncLog({
+          shop: session.shop,
+          topic: "APP_INSTALLED",
+          source: "auth",
+          status: "processed",
+          message: "Merchant installed or re-authenticated the app",
+          payload: { shop: session.shop, scope: session.scope },
+        });
+      } catch (error) {
+        console.error("Failed to persist shop after auth", error);
+      }
+    },
+  },
   future: {
     expiringOfflineAccessTokens: true,
   },
@@ -25,7 +45,7 @@ const shopify = shopifyApp({
 });
 
 export default shopify;
-export const apiVersion = ApiVersion.July26;
+export { apiVersion };
 export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
 export const unauthenticated = shopify.unauthenticated;

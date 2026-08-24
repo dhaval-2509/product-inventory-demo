@@ -24,6 +24,12 @@ shopify app init --template=https://github.com/Shopify/shopify-app-template-reac
 
 ### Local Development
 
+Start MongoDB, then add the values from `env.example` to `.env`:
+
+```shell
+docker compose up -d
+```
+
 ```shell
 shopify app dev
 ```
@@ -60,12 +66,14 @@ export async function loader({ request }) {
 }
 ```
 
-This template comes pre-configured with examples of:
+This app includes:
 
-1. Setting up your Shopify app in [/app/shopify.server.ts](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/shopify.server.ts)
-2. Querying data using Graphql. Please see: [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx).
-3. Responding to webhooks. Please see [/app/routes/webhooks.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/webhooks.app.uninstalled.tsx).
-4. Using metafields, metaobjects, and declarative custom data definitions. Please see [/app/routes/app.\_index.tsx](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx) and [shopify.app.toml](https://github.com/Shopify/shopify-app-template-react-router/blob/main/shopify.app.toml).
+1. Shopify OAuth install/login in `/app/shopify.server.js`
+2. Product, variant, SKU, and inventory views in `/app/routes/app._index.jsx`
+3. Inventory quantity updates with `inventorySetQuantities`
+4. Product and inventory webhook processing in `/app/routes/webhooks.$.jsx`
+5. MongoDB storage for sessions, shop records, and sync logs
+6. A merchant-facing sync log page at `/app/logs`
 
 Please read the [documentation for @shopify/shopify-app-react-router](https://shopify.dev/docs/api/shopify-app-react-router) to see what other API's are available.
 
@@ -79,21 +87,24 @@ For more information on the Shopify Dev MCP please read [the documentation](http
 
 ### Application Storage
 
-This template uses [Prisma](https://www.prisma.io/) to store session data, by default using an [SQLite](https://www.sqlite.org/index.html) database.
-The database is defined as a Prisma schema in `prisma/schema.prisma`.
+This app stores Shopify sessions, shop records, and webhook/sync logs in [MongoDB](https://www.mongodb.com/). Use a local MongoDB instance for development or [MongoDB Atlas](https://www.mongodb.com/atlas/database) for Vercel.
 
-This use of SQLite works in production if your app runs as a single instance.
-The database that works best for you depends on the data your app needs and how it is queried.
-Here’s a short list of databases providers that provide a free tier to get started:
+```shell
+docker compose up -d
+```
 
-| Database   | Type             | Hosters                                                                                                                                                                                                                                    |
-| ---------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| MySQL      | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mysql), [Planet Scale](https://planetscale.com/), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql) |
-| PostgreSQL | SQL              | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-postgresql), [Amazon Aurora](https://aws.amazon.com/rds/aurora/), [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres)                                   |
-| Redis      | Key-value        | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-redis), [Amazon MemoryDB](https://aws.amazon.com/memorydb/)                                                                                                        |
-| MongoDB    | NoSQL / Document | [Digital Ocean](https://www.digitalocean.com/products/managed-databases-mongodb), [MongoDB Atlas](https://www.mongodb.com/atlas/database)                                                                                                  |
+Then copy `env.example` values into `.env`:
 
-To use one of these, you can use a different [datasource provider](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#datasource) in your `schema.prisma` file, or a different [SessionStorage adapter package](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
+```
+MONGODB_URI=mongodb://127.0.0.1:27017
+MONGODB_DB_NAME=product_inventory
+```
+
+Collections created at runtime:
+
+- `shopify_sessions` — OAuth/session tokens
+- `shops` — installed shop metadata
+- `sync_logs` — webhook events and in-app inventory updates
 
 ### Build
 
@@ -119,26 +130,29 @@ pnpm run build
 
 ## Hosting
 
-When you're ready to set up your app in production, you can follow [our deployment documentation](https://shopify.dev/docs/apps/launch/deployment) to host it externally. From there, you have a few options:
+This app is set up for [Vercel](https://vercel.com/). Create a MongoDB Atlas cluster, then deploy the repo to Vercel with these environment variables:
 
-- [Google Cloud Run](https://shopify.dev/docs/apps/launch/deployment/deploy-to-google-cloud-run): This tutorial is written specifically for this example repo, and is compatible with the extended steps included in the subsequent [**Build your app**](tutorial) in the **Getting started** docs. It is the most detailed tutorial for taking a React Router-based Shopify app and deploying it to production. It includes configuring permissions and secrets, setting up a production database, and even hosting your apps behind a load balancer across multiple regions.
-- [Fly.io](https://fly.io/docs/js/shopify/): Leverages the Fly.io CLI to quickly launch Shopify apps to a single machine.
-- [Render](https://render.com/docs/deploy-shopify-app): This tutorial guides you through using Docker to deploy and install apps on a Dev store.
-- [Manual deployment guide](https://shopify.dev/docs/apps/launch/deployment/deploy-to-hosting-service): This resource provides general guidance on the requirements of deployment including environment variables, secrets, and persistent data.
+- `SHOPIFY_API_KEY`
+- `SHOPIFY_API_SECRET`
+- `SHOPIFY_APP_URL` — your Vercel URL, including `https://`
+- `SCOPES` — `read_products,read_inventory,write_inventory,read_locations`
+- `MONGODB_URI`
+- `MONGODB_DB_NAME`
+- `NODE_ENV=production`
 
-When you reach the step for [setting up environment variables](https://shopify.dev/docs/apps/deployment/web#set-env-vars), you also need to set the variable `NODE_ENV=production`.
+Get the Shopify values with `shopify app env show`. After Vercel assigns a URL:
+
+1. Set `application_url` and `[auth] redirect_urls` in `shopify.app.toml` to that URL.
+2. Run `shopify app deploy` so Shopify registers the production webhooks and scopes.
+3. Install the app on a development store and confirm `/app` and `/app/logs`.
+
+See Shopify's [deploy to a hosting service](https://shopify.dev/docs/apps/launch/deployment/deploy-to-hosting-service) guide for the remaining Partner Dashboard steps.
 
 ## Gotchas / Troubleshooting
 
-### Database tables don't exist
+### MongoDB connection errors
 
-If you get an error like:
-
-```
-The table `main.Session` does not exist in the current database.
-```
-
-Create the database for Prisma. Run the `setup` script in `package.json` using `npm`, `yarn` or `pnpm`.
+Confirm `MONGODB_URI` and `MONGODB_DB_NAME` are set in `.env` locally or in the Vercel project settings. Atlas users should allow Vercel IPs or `0.0.0.0/0` on the cluster network access list.
 
 ### Navigating/redirecting breaks an embedded app
 
@@ -196,25 +210,6 @@ To test [streaming using await](https://reactrouter.com/api/components/Await#awa
 ### "nbf" claim timestamp check failed
 
 This is because a JWT token is expired. If you are consistently getting this error, it could be that the clock on your machine is not in sync with the server. To fix this ensure you have enabled "Set time and date automatically" in the "Date and Time" settings on your computer.
-
-### Using MongoDB and Prisma
-
-If you choose to use MongoDB with Prisma, there are some gotchas in Prisma's MongoDB support to be aware of. Please see the [Prisma SessionStorage README](https://www.npmjs.com/package/@shopify/shopify-app-session-storage-prisma#mongodb).
-
-### Unable to require(`C:\...\query_engine-windows.dll.node`).
-
-Unable to require(`C:\...\query_engine-windows.dll.node`).
-The Prisma engines do not seem to be compatible with your system.
-
-query_engine-windows.dll.node is not a valid Win32 application.
-
-**Fix:** Set the environment variable:
-
-```shell
-PRISMA_CLIENT_ENGINE_TYPE=binary
-```
-
-This forces Prisma to use the binary engine mode, which runs the query engine as a separate process and can work via emulation on Windows ARM64.
 
 ## Resources
 
